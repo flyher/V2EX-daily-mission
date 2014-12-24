@@ -167,6 +167,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
     URL_REDEEM = u'http://www.v2ex.com/mission/daily'
     URL_BALANCE = u'http://www.v2ex.com/balance'
     URL_SIGNIN = u'http://www.v2ex.com/signin'
+    URL_JSON_LATEST = u'http://www.v2ex.com/api/topics/latest.json'
     SIGN_REDEEMED = u'ok-sign"'
     SIGN_SIGNUP = u'<a href="/signup"'
 
@@ -325,8 +326,9 @@ class V2exBaseHandler(webapp2.RequestHandler):
             return False
         else:
             # 读取连续登陆天数
-            if len(html)==0:
-                html=curl(self.URL_REDEEM, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+            #if len(html)==0:
+            html=curl(self.URL_REDEEM, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+            
             ret_status = self.reStatus.search(html)
             if ret_status:
                 logging.info('%s: found checkin days' % self.v_user)
@@ -370,6 +372,19 @@ class V2exBaseHandler(webapp2.RequestHandler):
                     'memo'    : ret_balance2.group(5)
                 })
         return ret_log
+    def visitV2exNormal(self):
+        html= curl(self.URL_JSON_LATEST, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+        if html:
+            jsonLatest= json.loads(html)
+            if len(jsonLatest):
+                logging.info('read some v2ex topics')
+                c_success = 0
+                for i in range(0, 5):
+                    r= curl(jsonLatest[i]['url'], referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+                    c_success += 1 if (type(r) != bool and len(r)) else 0
+                    time.sleep(1)
+                logging.info('read %s topics ' % c_success)
+
 
 
 class TaskQueueWalker(V2exBaseHandler):
@@ -423,6 +438,8 @@ class TaskQueueWalker(V2exBaseHandler):
                 if type(days) is long:
                     usr.days_last=days
                     usr.days_max=max(usr.days_max, usr.days_last)
+                #访问几个页面
+                self.visitV2exNormal()
                 #更新cookies
                 usr.v_cookie=unicode(self.exportCookie())
 
