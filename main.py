@@ -17,6 +17,7 @@ from google.appengine.ext import db
 from google.appengine.api import memcache
 from google.appengine.api import users
 from google.appengine.api import taskqueue
+from google.appengine.api import mail
 
 
 # TZONE_OFFSET_HOURS_V2EX = 8    #v2ex的时间与gae时间差
@@ -135,6 +136,20 @@ def addAppLog(v_user, coin=0, days=0, memo=None, result=True):
     log.result=result
     log.put()
     return
+
+
+def sendEmailAlert(sendto, sender, body):
+    if type(sendto) == str or type(sendto) == unicode:
+        sendto=Accounts.all().filter('v_user = ', sendto).get()
+    if type(sender) == str or type(sender) == unicode:
+        sender=Accounts.all().filter('v_user = ', sender).get()
+
+    message = mail.EmailMessage()
+    message.sender = sender.author.email()
+    message.to = sendto.author.email()
+    message.subject = u'V2EX-Daily.appspot.com Notification'
+    message.body = u'%s\nV2EX: %s\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
+    message.send()
 
 
 class TaskCronStartHandler(webapp2.RequestHandler):
@@ -372,6 +387,8 @@ class V2exBaseHandler(webapp2.RequestHandler):
                     'memo'    : ret_balance2.group(5)
                 })
         return ret_log
+
+
     def visitV2exNormal(self):
         html= curl(self.URL_JSON_LATEST, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
         if html:
@@ -410,6 +427,7 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 v_user, 0, 0, u'错误：登录失败，可能是保存的 cookie 已失效，请重新登录获取 cookie！', False
             )
+            sendEmailAlert(v_user, v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
             return
 
         days = self.doRedeem()
@@ -418,6 +436,7 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 self.v_user, 0, 0, u'错误：签到失败！', False
             )
+            sendEmailAlert(v_user, v_user, u'签到失败！')
         else:
             if type(days)==True:
                 logging.info('%s: checkin days not found' % v_user)
@@ -507,9 +526,11 @@ class MainPageHandler(V2exBaseHandler):
                     usr=Accounts.all().filter('v_user = ', uname).get()
                     if usr.author != users.get_current_user():
                         self.response.out.write(u'该用户已经添加！')
+                        msg = u'%s正在试图添加你的V2EX账户,操作已被取消。' % users.get_current_user().email()
                         addAppLog(
-                            usr, 0, 0, u'警告：%s正在试图添加你的V2EX账户, 操作已被取消。' % users.get_current_user().email(), False
+                            usr, 0, 0, u'警告：%s' % msg, False
                         )
+                        sendEmailAlert(usr, usr, msg)
                         return
                     usr.v_cookie=v_cookie
                     usr.put()
@@ -569,9 +590,11 @@ class MainPageHandler(V2exBaseHandler):
             else:
                 #提示用户其他人正在试图修改他的v2ex账户
                 if usr.count(1):    #用户被删除就不用写日志了
+                    msg = '%s正在试图查看你的日志或修改你的V2EX账户, 操作已被取消。' % users.get_current_user().email()
                     addAppLog(
-                        usr.get(), 0, 0, u'警告：%s正在试图查看你的日志或修改你的V2EX账户, 操作已被取消。' % users.get_current_user().email(), False
+                        usr.get(), 0, 0, u'警告：%s' % msg, False
                     )
+                    sendEmailAlert(usr, usr, msg)
 
                 MSG_ENABLE_OK = u'V2EX用户 %s 不属于你的账户。'
                 MSG_ENABLE_ER = u'该用户不存在。'
