@@ -18,6 +18,7 @@ from google.appengine.api import memcache
 from google.appengine.api import users
 from google.appengine.api import taskqueue
 from google.appengine.api import mail
+from google.appengine.api import app_identity
 
 
 # TZONE_OFFSET_HOURS_V2EX = 8    #v2ex的时间与gae时间差
@@ -138,17 +139,17 @@ def addAppLog(v_user, coin=0, days=0, memo=None, result=True):
     return
 
 
-def sendEmailAlert(sendto, sender, body):
+def sendEmailAlert(sendto, body):
     if type(sendto) == str or type(sendto) == unicode:
         sendto=Accounts.all().filter('v_user = ', sendto).get()
-    if type(sender) == str or type(sender) == unicode:
-        sender=Accounts.all().filter('v_user = ', sender).get()
+
+    sender = 'noreply@%s.appspotmail.com' % app_identity.get_application_id()
 
     message = mail.EmailMessage()
-    message.sender = sender.author.email()
+    message.sender = sender #sender.author.email()
     message.to = sendto.author.email()
     message.subject = u'V2EX-Daily.appspot.com Notification'
-    message.body = u'%s\nV2EX: %s\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
+    message.body = u'%s\n\nV2EX username: %s\n\n\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
     message.send()
 
 
@@ -427,7 +428,7 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 v_user, 0, 0, u'错误：登录失败，可能是保存的 cookie 已失效，请重新登录获取 cookie！', False
             )
-            sendEmailAlert(v_user, v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
+            sendEmailAlert(v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
             return
 
         days = self.doRedeem()
@@ -436,7 +437,7 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 self.v_user, 0, 0, u'错误：签到失败！', False
             )
-            sendEmailAlert(v_user, v_user, u'签到失败！')
+            sendEmailAlert(v_user, u'签到失败！')
         else:
             if type(days)==True:
                 logging.info('%s: checkin days not found' % v_user)
@@ -530,7 +531,7 @@ class MainPageHandler(V2exBaseHandler):
                         addAppLog(
                             usr, 0, 0, u'警告：%s' % msg, False
                         )
-                        sendEmailAlert(usr, usr, msg)
+                        sendEmailAlert(usr, msg)
                         return
                     usr.v_cookie=v_cookie
                     usr.put()
@@ -594,7 +595,7 @@ class MainPageHandler(V2exBaseHandler):
                     addAppLog(
                         usr.get(), 0, 0, u'警告：%s' % msg, False
                     )
-                    sendEmailAlert(usr, usr, msg)
+                    sendEmailAlert(usr, msg)
 
                 MSG_ENABLE_OK = u'V2EX用户 %s 不属于你的账户。'
                 MSG_ENABLE_ER = u'该用户不存在。'
