@@ -149,7 +149,7 @@ def sendEmailAlert(sendto, body):
     message.sender = sender #sender.author.email()
     message.to = sendto.author.email()
     message.subject = u'V2EX-Daily.appspot.com Notification'
-    message.body = u'%s\n\Username: %s\n\n\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
+    message.body = u'%s\nUsername: %s\n\n\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
     message.send()
 
 
