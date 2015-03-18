@@ -149,7 +149,7 @@ def sendEmailAlert(sendto, body):
     message.sender = sender #sender.author.email()
     message.to = sendto.author.email()
     message.subject = u'V2EX-Daily.appspot.com Notification'
-    message.body = u'%s\n\nV2EX username: %s\n\n\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
+    message.body = u'%s\n\Username: %s\n\n\nhttp://v2ex-daily.appspot.com' % (body, sendto.v_user)
     message.send()
 
 
@@ -220,6 +220,9 @@ class V2exBaseHandler(webapp2.RequestHandler):
 
 
     def importCookie(self, v_cookie):
+        if v_cookie is None or len(v_cookie) == 0: 
+            return
+
         a_cookies=json.loads(v_cookie)
         for c in a_cookies:
             self.c_cookie.cookiejar.set_cookie(
