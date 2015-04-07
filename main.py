@@ -280,7 +280,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
             'once': s_code,
             'next':'/'
         }
-        passcode='awegawgeawegawefawefawg'
+        del passcode
         html = curl(url=self.URL_SIGNIN, method='POST', data=data, referer=self.URL_SIGNIN, cookier=self.c_cookie, opener=self.c_opener)
         if not html:
             self.response.out.write(u'无法读取登录页面')
@@ -531,7 +531,7 @@ class MainPageHandler(V2exBaseHandler):
                     return
                     
             ret= self.login(uname, pword)
-            pword='abcccccdaeawgawegawe'
+            del pword
             if ret:
                 v_cookie=unicode(self.exportCookie())
                 if Accounts.all().filter('v_user = ', uname).count(1):
