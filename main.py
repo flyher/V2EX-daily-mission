@@ -309,8 +309,18 @@ class V2exBaseHandler(webapp2.RequestHandler):
 
 
     def checkIsRedeemed(self):
-        html = curl(self.URL_V2EX, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-        html = curl(self.URL_REDEEM, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+        i=10
+        while True:
+            html = curl(self.URL_V2EX, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+            html = curl(self.URL_REDEEM, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
+            if html==False:
+                time.sleep(5)
+                i = i - 1
+                if i==0:
+                    return False
+            else:
+                break
+
         global debug_page, IS_DEBUG
         if IS_DEBUG:
             debug_page = html
