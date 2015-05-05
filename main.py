@@ -8,13 +8,11 @@ import json
 import datetime
 import urllib
 import urllib2
-import StringIO
-import gzip
+import zlib
 import time
 from cookielib import Cookie
 from google.appengine.ext.webapp import template
 from google.appengine.ext import db
-from google.appengine.api import memcache
 from google.appengine.api import users
 from google.appengine.api import taskqueue
 from google.appengine.api import mail
@@ -59,13 +57,7 @@ class AppLog(db.Model):
     memo      = db.StringProperty(default="")               #说明，为v2ex的获得的金币说明
     result    = db.BooleanProperty(default=True)            #操作是否成功
 
-# memcaches = {
-#     v_user : {
-#         'waiting' : True,
-#         'success' : False,
 
-#     }
-# }
 def curl(url, data=None, method='GET', referer=None, header=None, cookier=None, opener=None):
     _header = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -91,31 +83,27 @@ def curl(url, data=None, method='GET', referer=None, header=None, cookier=None, 
     if method.upper() == 'POST':
         if not data: data = {}
         data = urllib.urlencode(data).encode('utf-8')
-        request = urllib2.Request(url= url,
-                                  headers= _header,
-                                  data= data)
+        request = urllib2.Request(url= url, headers= _header, data= data)
     else:
         if data:
             data = urllib.urlencode(data).encode('utf-8')
-            request = urllib2.Request(url ='%s?%s' % (url, data),
-                                      headers= _header)
+            request = urllib2.Request(url ='%s?%s' % (url, data), headers= _header)
         else:
-            request = urllib2.Request(url =url,
-                                      headers= _header)
+            request = urllib2.Request(url =url, headers= _header)
+    
     try:
         response = _opener.open(request, timeout= 60)
         x= response.read()
     except:
-        return False
+        return ''
 
-    if 'gzip' in str(response.info().get('Content-Encoding')).lower():
-        buf = StringIO.StringIO(buf = x)
-        f = gzip.GzipFile(fileobj= buf)
-        x = f.read()
+    if 'gzip' in response.info().get('Content-Encoding').lower():
+        r = zlib.decompress(x, 16+zlib.MAX_WBITS)
+
     try:
-        ret = x.decode('utf-8')
+        ret = r.decode('utf-8')
     except UnicodeDecodeError:
-        ret = x
+        ret = r
     response.close()
     return ret
 
@@ -263,7 +251,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
             return True
 
         html = curl(url=self.URL_SIGNIN, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-        if not html:
+        if len(html)==0:
             self.response.out.write(u'无法打开登录页面。')
             return False
         ret_signincode = self.reSigninCode.search(html)
@@ -282,7 +270,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
         }
         del passcode
         html = curl(url=self.URL_SIGNIN, method='POST', data=data, referer=self.URL_SIGNIN, cookier=self.c_cookie, opener=self.c_opener)
-        if not html:
+        if len(html)==0:
             self.response.out.write(u'无法读取登录页面')
             return False
         if self.SIGN_SIGNUP in html:
@@ -294,7 +282,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
 
     def checkIsLogin(self):
         html = curl(self.URL_V2EX_IP, cookier=self.c_cookie, opener=self.c_opener)
-        if not html: return False
+        if len(html)==0: return False
         if self.SIGN_SIGNUP in html: return False
         ret_username = self.reUsername.search(html)
         if ret_username:
@@ -313,7 +301,7 @@ class V2exBaseHandler(webapp2.RequestHandler):
         while True:
             html = curl(self.URL_V2EX, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
             html = curl(self.URL_REDEEM, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-            if html==False:
+            if len(html)==0:
                 time.sleep(5)
                 i = i - 1
                 if i==0:
@@ -362,13 +350,14 @@ class V2exBaseHandler(webapp2.RequestHandler):
             if ret_status:
                 logging.info('%s: found checkin days' % self.v_user)
                 return long(ret_status.group(1))
-            logging.info('%s: not found checkin days' % self.v_user)
-            return True
+            else:
+                logging.info('%s: not found checkin days' % self.v_user)
+                return True
 
 
     def getBalanceLog(self):
         html = curl((self.URL_BALANCE), referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-        if not html:
+        if len(html)==0:
             addAppLog(
                 self.v_user, 0, 0, u'错误: 无法读取页面：/banlance。', False
             )
@@ -405,14 +394,14 @@ class V2exBaseHandler(webapp2.RequestHandler):
 
     def visitV2exNormal(self):
         html= curl(self.URL_JSON_LATEST, referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-        if html:
+        if len(html):
             jsonLatest= json.loads(html)
             if len(jsonLatest):
                 logging.info('read some v2ex topics')
                 c_success = 0
                 for i in range(0, 5):
                     r= curl(jsonLatest[i]['url'], referer=self.URL_V2EX, cookier=self.c_cookie, opener=self.c_opener)
-                    c_success += 1 if (type(r) != bool and len(r)) else 0
+                    c_success += (1 if len(r) else 0)
                     time.sleep(1)
                 logging.info('read %s topics ' % c_success)
 
