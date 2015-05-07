@@ -97,9 +97,16 @@ def curl(url, data=None, method='GET', referer=None, header=None, cookier=None, 
     except:
         return ''
 
-    if 'gzip' in response.info().get('Content-Encoding').lower():
+    encoding = response.info().get('Content-Encoding')
+    is_gzip = False
+    if encoding:
+        if 'gzip' in encoding.lower():
+            is_gzip = True
+    if is_gzip:
         r = zlib.decompress(x, 16+zlib.MAX_WBITS)
-
+    else:
+        r = x
+        
     try:
         ret = r.decode('utf-8')
     except UnicodeDecodeError:
