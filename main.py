@@ -547,6 +547,7 @@ class MainPageHandler(V2exBaseHandler):
                         )
                         sendEmailAlert(usr, msg)
                         return
+                    usr.enabled = True
                     usr.v_cookie=v_cookie
                     usr.put()
                 else:
