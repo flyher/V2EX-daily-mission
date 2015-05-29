@@ -433,11 +433,16 @@ class TaskQueueWalker(V2exBaseHandler):
 
         if self.checkIsLogin()==False:
             logging.info('%s: login failed' % v_user)
-            # addAppLog(self.v_user,....) 改为 addAppLog(v_user,....),当checkIsLogin没有登录或cookies失效的时候 self.v_user是没有设置的.
             addAppLog(
                 v_user, 0, 0, u'错误：登录失败，可能是保存的 cookie 已失效，请重新登录获取 cookie！', False
             )
             sendEmailAlert(v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
+            # disable 
+            usr = Accounts.all().filter('v_user = ', v_user)
+            if usr.count(1):
+                usr=usr.get()
+                usr.enabled = False
+                usr.put()
             return
 
         days = self.doRedeem()
