@@ -528,15 +528,17 @@ class TaskQueueWalker(V2exBaseHandler):
 class MainPageHandler(V2exBaseHandler):
     def get(self):
         user = users.get_current_user()
+        ga = getConfig('gacode', '')
         if not user:
-            self.response.out.write('<html><body><a href="%s">Signin with Google OpenID</a></body></html>' % users.create_login_url('/'))
+            self.response.out.write('<html><body><a href="%s">Signin with Google OpenID</a></body>%s</html>' % (users.create_login_url('/'), ga))
             return
         usrs = Accounts.all().filter('author = ', user).order('date_add')
         template_values = {
             'LoginAs'  : user.nickname(),
             'LogoutUrl': users.create_logout_url('/'),
             'Users'    : usrs,
-            'empty'    : usrs.count()==0
+            'empty'    : usrs.count()==0,
+            'gacode'   : ga
         }
         self.response.out.write(template.render(TEMPLATE_MAIN, template_values))
         return
