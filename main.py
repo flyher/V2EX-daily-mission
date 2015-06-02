@@ -153,7 +153,7 @@ class TaskCronStartHandler(webapp2.RequestHandler):
         v_users = Accounts.all().filter('enabled = ', True)
         if v_users.count():
             for u in v_users:
-                taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie})
+                taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie,'noemail':False})
         return
 
 
@@ -167,7 +167,7 @@ class UserStartCronHandler(webapp2.RequestHandler):
         if v_users.count():
             for u in v_users:
                 #if u.author==user:
-                taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie})
+                taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie,'noemail':True})
         self.redirect(uri='/', code=301)
         return
 
@@ -423,6 +423,7 @@ class TaskQueueWalker(V2exBaseHandler):
     def post(self):
         v_user = self.request.get('user')
         v_cookie = self.request.get('cookie')
+        no_email = self.request.get('noemail')
 
         if not v_user and not v_cookie:
             return
@@ -436,7 +437,8 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 v_user, 0, 0, u'错误：登录失败，可能是保存的 cookie 已失效，请重新登录获取 cookie！', False
             )
-            sendEmailAlert(v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
+            if not no_email:
+                sendEmailAlert(v_user, u'V2EX每日自动签到登录信息过期，需要重新登录。')
             # disable 
             usr = Accounts.all().filter('v_user = ', v_user)
             if usr.count(1):
@@ -451,7 +453,8 @@ class TaskQueueWalker(V2exBaseHandler):
             addAppLog(
                 self.v_user, 0, 0, u'错误：签到失败！', False
             )
-            sendEmailAlert(v_user, u'签到失败！')
+            if not no_email:
+                sendEmailAlert(v_user, u'签到失败！')
         else:
             if type(days)==True:
                 logging.info('%s: checkin days not found' % v_user)
