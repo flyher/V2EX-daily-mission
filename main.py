@@ -61,7 +61,7 @@ class AppLog(db.Model):
 
 class SiteConfig(db.Model):
     keyname   = db.StringProperty()
-    value     = db.StringProperty()
+    value     = db.TextProperty()
 
 
 def getConfig(key, default=None):
@@ -69,8 +69,8 @@ def getConfig(key, default=None):
     if r is None:
         config = SiteConfig.all().filter('keyname = ', key)
         if config.count(1):
-            memcache.set(key=key, value=config.value)
-            return config.value
+            memcache.set(key='config-%s' % key, value=config[0].value)
+            return config[0].value
         else:
             return default
     else:
