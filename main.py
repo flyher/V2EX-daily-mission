@@ -17,6 +17,7 @@ from google.appengine.api import users
 from google.appengine.api import taskqueue
 from google.appengine.api import mail
 from google.appengine.api import app_identity
+from google.appengine.api import memcache
 
 
 # TZONE_OFFSET_HOURS_V2EX = 8    #v2ex的时间与gae时间差
@@ -56,6 +57,24 @@ class AppLog(db.Model):
     days      = db.IntegerProperty(default=0)               #当前的连续天数
     memo      = db.StringProperty(default="")               #说明，为v2ex的获得的金币说明
     result    = db.BooleanProperty(default=True)            #操作是否成功
+
+
+class SiteConfig(db.Model):
+    keyname   = db.StringProperty()
+    value     = db.StringProperty()
+
+
+def getConfig(key, default=None):
+    r = memcache.get('config-%s' % key)
+    if r is None:
+        config = SiteConfig.all().filter('keyname = ', key)
+        if config.count(1):
+            memcache.set(key=key, value=config.value)
+            return config.value
+        else:
+            return default
+    else:
+        return r
 
 
 def curl(url, data=None, method='GET', referer=None, header=None, cookier=None, opener=None):
