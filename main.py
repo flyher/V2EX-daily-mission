@@ -442,8 +442,8 @@ class TaskQueueWalker(V2exBaseHandler):
     def post(self):
         v_user = self.request.get('user')
         v_cookie = self.request.get('cookie')
-        no_email = self.request.get('noemail')
-
+        no_email = self.request.get('noemail').lower()=='true'
+        
         if not v_user and not v_cookie:
             return
 
@@ -626,7 +626,7 @@ class MainPageHandler(V2exBaseHandler):
                     return
 
                 elif action=='redeem':
-                    taskqueue.add(url='/runtask', params={'user': usr.v_user,'cookie':usr.v_cookie})
+                    taskqueue.add(url='/runtask', params={'user': usr.v_user,'cookie':usr.v_cookie,'noemail':True})
             else:
                 #提示用户其他人正在试图修改他的v2ex账户
                 if usr.count(1):    #用户被删除就不用写日志了
