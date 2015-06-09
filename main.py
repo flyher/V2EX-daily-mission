@@ -30,6 +30,8 @@ TEMPLATE_TR   = os.path.join(os.path.dirname(__file__), 'tr.html')
 PAGE_404 = '<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1>The resource could not be found.<br /><br /></body></html>'
 PAGE_LOGS_COUNT = 10
 
+SECONDS_BETWEEN_OPS = 5
+
 debug_page = ''
 
 IS_DEBUG = False
@@ -64,6 +66,7 @@ class SiteConfig(db.Model):
     value     = db.TextProperty()
 
 
+
 def getConfig(key, default=None):
     r = memcache.get('config-%s' % key)
     if r is None:
@@ -75,6 +78,25 @@ def getConfig(key, default=None):
             return default
     else:
         return r
+
+
+
+def getRequestLimit(keyname, rate=SECONDS_BETWEEN_OPS):
+    k = u'RequestLimit-%s' % keyname
+    data = memcache.get(k)
+    if data is None:
+        memcache.set(k, (time.time(), 0))
+        return 0
+    prev_time, counter = data
+    now = time.time()
+    if prev_time + rate > now:
+        counter = counter + 1
+    if prev_time - now > 60:
+        counter = counter - (prev_time - now)/60/rate
+        if counter < 0: counter = 0
+    memcache.set(k, (now, counter))
+    return counter * rate
+
 
 
 def curl(url, data=None, method='GET', referer=None, header=None, cookier=None, opener=None):
@@ -173,21 +195,6 @@ class TaskCronStartHandler(webapp2.RequestHandler):
         if v_users.count():
             for u in v_users:
                 taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie,'noemail':False})
-        return
-
-
-class UserStartCronHandler(webapp2.RequestHandler):
-    def get(self):
-        user = users.get_current_user()
-        if not user:
-            self.error(404)
-            return
-        v_users = Accounts.all().filter('author = ', user).filter('enabled = ', True)
-        if v_users.count():
-            for u in v_users:
-                #if u.author==user:
-                taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie,'noemail':True})
-        self.redirect(uri='/', code=301)
         return
 
 
@@ -527,6 +534,7 @@ class TaskQueueWalker(V2exBaseHandler):
 
 class MainPageHandler(V2exBaseHandler):
     def get(self):
+        global SECONDS_BETWEEN_OPS
         user = users.get_current_user()
         ga = getConfig('gacode', '')
         if not user:
@@ -538,6 +546,7 @@ class MainPageHandler(V2exBaseHandler):
             'LogoutUrl': users.create_logout_url('/'),
             'Users'    : usrs,
             'empty'    : usrs.count()==0,
+            'limit'    : SECONDS_BETWEEN_OPS,
             'gacode'   : ga
         }
         self.response.out.write(template.render(TEMPLATE_MAIN, template_values))
@@ -545,6 +554,7 @@ class MainPageHandler(V2exBaseHandler):
 
     def post(self):
         #模拟登录并保存cookies
+        global SECONDS_BETWEEN_OPS
         action = self.request.get('action').lower()
 
         if action=='login':
@@ -602,9 +612,6 @@ class MainPageHandler(V2exBaseHandler):
                         usr, 0, 0, u'信息：变更用户状态。%s' % u'激活自动签到' if usr.enabled else u'取消自动签到' , True
                     )
                 elif action=='delete':
-                    # addAppLog(
-                    #     usr, 0, 0, u'信息：删除用户。账户日志也应该删除。', True
-                    # )
                     db.delete(usr.logs)
                     db.delete(usr)
                     
@@ -626,7 +633,12 @@ class MainPageHandler(V2exBaseHandler):
                     return
 
                 elif action=='redeem':
+                    l = getRequestLimit(usr.v_user)
+                    if l != 0:
+                        self.response.out.write(u'操作过于频繁，请 %s分 后再试。' % l)
+                        return 
                     taskqueue.add(url='/runtask', params={'user': usr.v_user,'cookie':usr.v_cookie,'noemail':True})
+
             else:
                 #提示用户其他人正在试图修改他的v2ex账户
                 if usr.count(1):    #用户被删除就不用写日志了
@@ -645,6 +657,21 @@ class MainPageHandler(V2exBaseHandler):
                     self.response.out.write(MSG_ENABLE_ER)
                 return
 
+        if action == 'redeemall':
+            user = users.get_current_user()
+            if not user:
+                self.error(400)
+                return
+            l = getRequestLimit(user.email(), SECONDS_BETWEEN_OPS)
+            if l != 0:
+                self.response.out.write(u'操作过于频繁，请 %s分 后再试。' % l)
+                return 
+            v_users = Accounts.all().filter('author = ', user).filter('enabled = ', True)
+            if v_users.count():
+                for u in v_users:
+                    taskqueue.add(url='/runtask', params={'user': u.v_user,'cookie':u.v_cookie,'noemail':True})
+
+
         self.response.out.write('OK')
         return
 
@@ -658,7 +685,6 @@ class DebugHandler(V2exBaseHandler):
 app = webapp2.WSGIApplication(
     [
         ('/daily', TaskCronStartHandler),
-        ('/manual', UserStartCronHandler),
         ('/runtask', TaskQueueWalker),
         ('/dbg', DebugHandler),
         ('/', MainPageHandler)

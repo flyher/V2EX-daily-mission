@@ -82,7 +82,7 @@
         <br>
         <button type="button" class="btn btn-primary" name="new" onclick="startEdit(this);">&nbsp;添加V2EX账号&nbsp;</button>
         {% if not empty %}
-        <button type="button" class="btn btn-primary" name="manual" onclick="location.href='/manual';">全部重新签到</button>
+        <button type="button" class="btn btn-primary" name="redeemall" onclick="actionVUser(this);">全部重新签到</button>
         <br><br>
         <table class="table table-hover table-bordered">
             <thead>
@@ -139,6 +139,8 @@
         {% endif %}
         {% if empty %}
         <center><h3>添加V2EX账户获取Cookies以自动签到.</h3></center>
+        {% else %}
+        <p>* 因每次签到均需要多次从 V2EX 请求数据，耗时较长，请每次手动签到{% if limit %}至少间隔{{ limit }}秒钟{% else %}不要太频繁{% endif %}；签到结果可在日志中查询。</p>
         {% endif %}
 
         <!-- Modal editor -->
@@ -267,12 +269,16 @@
                 showLoading(true);
                 $('.alert').hide();
             },
-            success: function(data, txtStatus){
-                if(data=='OK'){
+            success: function(txtResponse, txtStatus){
+                if(txtResponse=='OK'){
                     location.reload();
                 }else{
-                    $("#login-info-text")[0].innerHTML=data;
-                    $(".alert").show();
+                    if(data.action.substring(0,6)=='redeem'){
+                        alert(txtResponse);
+                    }else{
+                        $("#login-info-text")[0].innerHTML=txtResponse;
+                        $(".alert").show();
+                    }
                 }
             },
             complete: function(XMLHttpRequest, textStatus){

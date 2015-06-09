@@ -20,10 +20,6 @@ handlers:
   script: main.app
   login: admin
 
-- url: /manual
-  script: main.app
-  login: required
-
 - url: /dbg
   script: main.app
   login: admin
